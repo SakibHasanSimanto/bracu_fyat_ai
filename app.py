@@ -54,15 +54,27 @@ def call_groq(system_prompt, user_prompt):
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"]
     
+# Format memory list as bullet points
+memory_list = st.session_state.user_prompts[:]  # want all memory
+formatted_memory = "\n".join(f"- {q}" for q in memory_list) 
+
 def generate_answer(user_msg):
     context = retrieve_context(user_msg)
 
+    # Format memory list as bullet points
+    memory_list = st.session_state.user_prompts[:]  # keep full memory
+    formatted_memory = "\n".join(f"- {q}" for q in memory_list) if memory_list else "None yet."
+
     system_prompt = (
-        "You are FYAT AI 1.0, a helpful BRAC University CSE assistant. "
-        "First, understand user query, and then answer based on the context below, but fix grammar / formatting:\n\n"
+        "You are FYAT AI 1.0, a helpful BRAC University CSE assistant.\n\n"
+        "First, understand the user's query. Then answer based on the context below. "
+        "Fix grammar and formatting in your response for professionalism.\n\n"
         f"{context}\n\n"
-        "If the context seems insufficient, then response possible answer with your pretrained knowledge and politely direct the user to "
-        "https://cse.sds.bracu.ac.bd/ and https://www.bracu.ac.bd/. You must let the user know if you used your pretrained knowledge." 
+        "If the context seems insufficient, respond with your pretrained knowledge **but you must inform the user that you're using your own knowledge**. "
+        "Also, politely guide the user to:\n"
+        "https://cse.sds.bracu.ac.bd/ and https://www.bracu.ac.bd/.\n\n"
+        "Previous prompts sent by the user (refer if useful):\n"
+        f"{formatted_memory}"
     )
 
     # Prepare full message history
@@ -109,6 +121,10 @@ with st.expander("Disclaimer", expanded=False):
 if "history" not in st.session_state:
     st.session_state.history = []
 
+if "user_prompts" not in st.session_state:
+    st.session_state.user_prompts = []
+
+
 # Display past messages
 for role, msg in st.session_state.history:
     st.chat_message(role).markdown(msg)
@@ -124,4 +140,16 @@ if user_msg:
             st.markdown(answer)
     # Update history
     st.session_state.history.append(("user", user_msg))
+    st.session_state.user_prompts.append(user_msg)
+
     st.session_state.history.append(("assistant", answer))
+
+# optiional: Show Past Prompts in Sidebar
+with st.sidebar:
+    st.markdown("### 🧠 Prompt Memory")
+    if st.session_state.user_prompts:
+        for i, q in enumerate(st.session_state.user_prompts, 1):
+            st.markdown(f"{i}. {q}")
+    else:
+        st.markdown("_No prompts yet._")
+
