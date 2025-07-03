@@ -124,7 +124,10 @@ if user_msg:
 with st.sidebar:
     st.markdown("### 🧠 Prompt Memory (last 5)")
     if st.session_state.user_prompts:
-        for idx, q in enumerate(st.session_state.user_prompts, 1):
+        # Show only last 5 prompts
+        last_five = st.session_state.user_prompts[-5:]
+        for idx, q in enumerate(last_five, 1):
             st.markdown(f"{idx}. {q}")
     else:
         st.markdown("_No prompts yet._")
+
