@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
+import uuid
 import pickle
 import faiss
 import numpy as np
 import requests
 import streamlit as st
 from sentence_transformers import SentenceTransformer
+
+# ---------- 0.  Per‑user session ID ----------
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+
+HISTORY_KEY = f"history_{st.session_state.session_id}"
 
 # ---------- 1. Load data & models (cached) ----------
 @st.cache_resource(show_spinner=False)
@@ -28,7 +35,7 @@ def retrieve_context(query, k: int = 2) -> str:
     _, I = index.search(np.array(query_vec), k)
     return "\n".join(chunks[i] for i in I[0])
 
-def generate_answer(user_msg: str) -> str:
+def generate_answer(user_msg: str, history: list) -> str:
     context = retrieve_context(user_msg)
 
     system_prompt = (
@@ -41,11 +48,11 @@ def generate_answer(user_msg: str) -> str:
     )
 
     messages = [{"role": "system", "content": system_prompt}]
-    history = st.session_state.history[:-1] if st.session_state.history else []
+    trimmed_history = history[-10:]  # keep last 5 turns (10 messages)
 
-    for i in range(0, len(history), 2):
-        user_prev = history[i][1]
-        bot_prev  = history[i + 1][1] if i + 1 < len(history) else ""
+    for i in range(0, len(trimmed_history), 2):
+        user_prev = trimmed_history[i][1]
+        bot_prev  = trimmed_history[i + 1][1] if i + 1 < len(trimmed_history) else ""
         messages.append({"role": "user", "content": user_prev})
         messages.append({"role": "assistant", "content": bot_prev})
 
@@ -69,12 +76,11 @@ def generate_answer(user_msg: str) -> str:
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
 
-    except requests.exceptions.HTTPError as e:
-        st.error("⚠️ The model could not generate a response. This may be due to hitting token limits or a GROQ API issue.")
+    except requests.exceptions.HTTPError:
+        st.error("⚠️ The model could not generate a response (token limit or API issue).")
         st.stop()
-
     except Exception as e:
-        st.error("⚠️ Something went wrong while contacting the GROQ API.")
+        st.error("⚠️ Unexpected error contacting the GROQ API.")
         st.exception(e)
         st.stop()
 
@@ -91,11 +97,13 @@ with st.expander("Disclaimer", expanded=False):
     )
 
 # ---------- 4. Session state initialisation ----------
-if "history" not in st.session_state:
-    st.session_state.history = []
+if HISTORY_KEY not in st.session_state:
+    st.session_state[HISTORY_KEY] = []
+
+history = st.session_state[HISTORY_KEY]
 
 # ---------- 5. Display past messages ----------
-for role, msg in st.session_state.history:
+for role, msg in history:
     st.chat_message(role).markdown(msg)
 
 # ---------- 6. User input ----------
@@ -105,15 +113,13 @@ if user_msg:
     st.chat_message("user").markdown(user_msg)
     with st.chat_message("assistant"):
         with st.spinner("Thinking…"):
-            answer = generate_answer(user_msg)
+            answer = generate_answer(user_msg, history)
             st.markdown(answer)
 
-    # Update history (for display)
-    st.session_state.history.append(("user", user_msg))
-    st.session_state.history.append(("assistant", answer))
+    # Update per‑session history
+    history.append(("user", user_msg))
+    history.append(("assistant", answer))
 
-    # Reset history if it gets too long (to avoid token overflow)
-    if len(st.session_state.history) > 10:  # 5 turns = 10 messages (user+assistant)
-        st.session_state.history = st.session_state.history[-10:]
-
-
+    # Trim to last 10 messages (5 turns)
+    if len(history) > 10:
+        history[:] = history[-10:]
