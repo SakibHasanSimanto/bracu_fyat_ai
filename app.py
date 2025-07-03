@@ -15,6 +15,25 @@ import requests
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 
+# ---------- 0. Streamlit UI ----------
+st.set_page_config(page_title="FYAT AI – BRACU CSE Assistant", page_icon="🪄")
+
+# Chat history lives in session_state
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+if "user_prompts" not in st.session_state:
+    st.session_state.user_prompts = []
+
+st.title("🪄 FYAT AI: BRACU CSE Knowledge Assistant")
+st.caption("Powered by BAAI embeddings + Llama 3‑8B (GROQ)")
+
+with st.expander("Disclaimer", expanded=False):
+    st.markdown(
+        "This tool provides information for educational purposes only and is **not** a "
+        "substitute for FYAT Mentors or official university resources."
+    )
+
 # ---------- 1. Load data & models (cached) ----------
 @st.cache_resource(show_spinner=False)
 def load_resources():
@@ -103,27 +122,6 @@ def generate_answer(user_msg):
     response = requests.post(GROQ_URL, headers=headers, json=body, timeout=30)
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
-
-
-# ---------- 3. Streamlit UI ----------
-st.set_page_config(page_title="FYAT AI – BRACU CSE Assistant", page_icon="🪄")
-
-st.title("🪄 FYAT AI: BRACU CSE Knowledge Assistant")
-st.caption("Powered by BAAI embeddings + Llama 3‑8B (GROQ)")
-
-with st.expander("Disclaimer", expanded=False):
-    st.markdown(
-        "This tool provides information for educational purposes only and is **not** a "
-        "substitute for FYAT Mentors or official university resources."
-    )
-
-# Chat history lives in session_state
-if "history" not in st.session_state:
-    st.session_state.history = []
-
-if "user_prompts" not in st.session_state:
-    st.session_state.user_prompts = []
-
 
 # Display past messages
 for role, msg in st.session_state.history:
