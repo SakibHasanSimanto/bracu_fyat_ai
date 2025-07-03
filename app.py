@@ -102,9 +102,32 @@ if HISTORY_KEY not in st.session_state:
 
 history = st.session_state[HISTORY_KEY]
 
+# ---------- 4.5 Optional: Clear Memory Button ----------
+if st.button("🧹 Clear Chat History", use_container_width=True):
+    st.session_state[HISTORY_KEY] = []
+    st.rerun()
+
 # ---------- 5. Display past messages ----------
 for role, msg in history:
     st.chat_message(role).markdown(msg)
+
+
+import time
+
+# Initialize last_sent_time if not present
+if "last_sent_time" not in st.session_state:
+    st.session_state.last_sent_time = 0
+
+# Calculate elapsed time since last message
+elapsed = time.time() - st.session_state.last_sent_time
+cooldown_seconds = 5
+
+if elapsed < cooldown_seconds:
+    wait_time = int(cooldown_seconds - elapsed)
+    st.warning(f"⏳ Please wait {wait_time} second(s) before sending another message.")
+    user_msg = None
+else:
+    user_msg = st.chat_input("Ask me anything about BRACU CSE…")
 
 # ---------- 6. User input ----------
 user_msg = st.chat_input("Ask me anything about BRACU CSE…")
@@ -118,7 +141,10 @@ if user_msg:
 
     # Update per‑session history
     history.append(("user", user_msg))
-    history.append(("assistant", answer))
+    history.append(("assistant", answer)) 
+    
+    # Update timestamp for cooldown 
+    st.session_state.last_sent_time = time.time()
 
     # Trim to last 10 messages (5 turns)
     if len(history) > 10:
