@@ -6,6 +6,7 @@ import numpy as np
 import requests
 import streamlit as st
 from sentence_transformers import SentenceTransformer
+import time
 
 # ---------- 0.  Per‑user session ID ----------
 if "session_id" not in st.session_state:
@@ -48,7 +49,7 @@ def generate_answer(user_msg: str, history: list) -> str:
     )
 
     messages = [{"role": "system", "content": system_prompt}]
-    trimmed_history = history[-10:]  # keep last 5 turns (10 messages)
+    trimmed_history = history[-10:]  # keep last 5 turns (10 messages)
 
     for i in range(0, len(trimmed_history), 2):
         user_prev = trimmed_history[i][1]
@@ -96,42 +97,37 @@ with st.expander("Disclaimer", expanded=False):
         "**not** a substitute for FYAT Mentors or official university resources."
     )
 
-# ---------- 4. Session state initialisation ----------
+# ---------- 4. Session state initialization ----------
 if HISTORY_KEY not in st.session_state:
     st.session_state[HISTORY_KEY] = []
 
 history = st.session_state[HISTORY_KEY]
 
-# ---------- 4.5 Optional: Clear Memory Button ----------
+# ---------- 4.5 Clear memory button ----------
 if st.button("🧹 Clear Chat History", use_container_width=True):
     st.session_state[HISTORY_KEY] = []
-    st.rerun()
+    st.session_state["last_sent_time"] = 0  # Reset cooldown as well
+    st.experimental_rerun()
 
 # ---------- 5. Display past messages ----------
 for role, msg in history:
     st.chat_message(role).markdown(msg)
 
-
-import time
-
-# Initialize last_sent_time if not present
+# ---------- 6. Enforce cooldown for sending messages ----------
 if "last_sent_time" not in st.session_state:
-    st.session_state.last_sent_time = 0
+    st.session_state["last_sent_time"] = 0
 
-# Calculate elapsed time since last message
-elapsed = time.time() - st.session_state.last_sent_time
+elapsed = time.time() - st.session_state["last_sent_time"]
 cooldown_seconds = 5
 
 if elapsed < cooldown_seconds:
-    wait_time = int(cooldown_seconds - elapsed)
+    wait_time = int(cooldown_seconds - elapsed) + 1
     st.warning(f"⏳ Please wait {wait_time} second(s) before sending another message.")
     user_msg = None
 else:
     user_msg = st.chat_input("Ask me anything about BRACU CSE…")
 
-# ---------- 6. User input ----------
-user_msg = st.chat_input("Ask me anything about BRACU CSE…")
-
+# ---------- 7. User input handling ----------
 if user_msg:
     st.chat_message("user").markdown(user_msg)
     with st.chat_message("assistant"):
@@ -139,13 +135,11 @@ if user_msg:
             answer = generate_answer(user_msg, history)
             st.markdown(answer)
 
-    # Update per‑session history
+    # Update session history and cooldown timer
     history.append(("user", user_msg))
-    history.append(("assistant", answer)) 
-    
-    # Update timestamp for cooldown 
-    st.session_state.last_sent_time = time.time()
+    history.append(("assistant", answer))
+    st.session_state["last_sent_time"] = time.time()
 
-    # Trim to last 10 messages (5 turns)
+    # Trim history to last 10 messages (5 turns)
     if len(history) > 10:
         history[:] = history[-10:]
