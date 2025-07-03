@@ -122,7 +122,7 @@ cooldown_seconds = 5
 
 if elapsed < cooldown_seconds:
     wait_time = int(cooldown_seconds - elapsed) + 1
-    st.warning(f"⏳ Please wait {wait_time} second(s) before sending another message.")
+    st.warning(f"⚠️ Seems like you are trying to spam. Refresh for further usage.")
     user_msg = None
 else:
     user_msg = st.chat_input("Ask me anything about BRACU CSE…")
