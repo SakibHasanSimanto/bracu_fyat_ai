@@ -94,9 +94,6 @@ with st.expander("Disclaimer", expanded=False):
 if "history" not in st.session_state:
     st.session_state.history = []
 
-if "user_prompts" not in st.session_state:
-    st.session_state.user_prompts = []
-
 # ---------- 5. Display past messages ----------
 for role, msg in st.session_state.history:
     st.chat_message(role).markdown(msg)
@@ -115,19 +112,8 @@ if user_msg:
     st.session_state.history.append(("user", user_msg))
     st.session_state.history.append(("assistant", answer))
 
-    # 🔁 Reset history if it gets too long (to avoid token overflow)
+    # Reset history if it gets too long (to avoid token overflow)
     if len(st.session_state.history) > 10:  # 5 turns = 10 messages (user+assistant)
         st.session_state.history = st.session_state.history[-10:]
 
-
-# ---------- 7. (Optional) Show memory in sidebar ----------
-with st.sidebar:
-    st.markdown("### 🧠 Prompt Memory (last 5)")
-    if st.session_state.user_prompts:
-        # Show only last 5 prompts
-        last_five = st.session_state.user_prompts[-5:]
-        for idx, q in enumerate(last_five, 1):
-            st.markdown(f"{idx}. {q}")
-    else:
-        st.markdown("_No prompts yet._")
 
