@@ -29,19 +29,17 @@ def retrieve_context(query, k: int = 2) -> str:
     return "\n".join(chunks[i] for i in I[0])
 
 def generate_answer(user_msg: str) -> str:
-    """Build messages list (system + history + user) and call GROQ."""
     context = retrieve_context(user_msg)
 
     system_prompt = (
         "You are FYAT AI 1.0, a helpful BRAC University CSE assistant. "
-        "First, understand the user's query, then answer based on the context below, "
+        "First, understand the user's query, then concisely answer based on the context below, "
         "fixing grammar/formatting as needed:\n\n"
         f"{context}\n\n"
         "If the context seems insufficient, answer with your pretrained knowledge but say you are doing so, "
         "and politely direct the user to https://cse.sds.bracu.ac.bd/ and https://www.bracu.ac.bd/."
     )
 
-    # Build message list
     messages = [{"role": "system", "content": system_prompt}]
     history = st.session_state.history[:-1] if st.session_state.history else []
 
@@ -53,22 +51,32 @@ def generate_answer(user_msg: str) -> str:
 
     messages.append({"role": "user", "content": user_msg})
 
-    resp = requests.post(
-        GROQ_URL,
-        headers={
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type":  "application/json"
-        },
-        json={
-            "model": MODEL_NAME,
-            "messages": messages,
-            "temperature": 0.4,
-            "max_tokens": 800
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    try:
+        resp = requests.post(
+            GROQ_URL,
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": MODEL_NAME,
+                "messages": messages,
+                "temperature": 0.4,
+                "max_tokens": 800
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+    except requests.exceptions.HTTPError as e:
+        st.error("⚠️ The model could not generate a response. This may be due to hitting token limits or a GROQ API issue.")
+        st.stop()
+
+    except Exception as e:
+        st.error("⚠️ Something went wrong while contacting the GROQ API.")
+        st.exception(e)
+        st.stop()
 
 # ---------- 3. Streamlit UI ----------
 st.set_page_config(page_title="FYAT AI – BRACU CSE Assistant", page_icon="🪄")
@@ -107,14 +115,14 @@ if user_msg:
     st.session_state.history.append(("user", user_msg))
     st.session_state.history.append(("assistant", answer))
 
-    # Update user prompt memory (keep only last 10)
-    st.session_state.user_prompts.append(user_msg)
-    if len(st.session_state.user_prompts) > 10:
-        st.session_state.user_prompts = st.session_state.user_prompts[-10:]
+    # 🔁 Reset history if it gets too long (to avoid token overflow)
+    if len(st.session_state.history) > 10:  # 5 turns = 10 messages (user+assistant)
+        st.session_state.history = st.session_state.history[-10:]
+
 
 # ---------- 7. (Optional) Show memory in sidebar ----------
 with st.sidebar:
-    st.markdown("### 🧠 Prompt Memory (last 10)")
+    st.markdown("### 🧠 Prompt Memory (last 5)")
     if st.session_state.user_prompts:
         for idx, q in enumerate(st.session_state.user_prompts, 1):
             st.markdown(f"{idx}. {q}")
