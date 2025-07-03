@@ -53,17 +53,45 @@ def call_groq(system_prompt, user_prompt):
     resp = requests.post(GROQ_URL, headers=headers, json=body, timeout=30)
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"]
-
+    
 def generate_answer(user_msg):
     context = retrieve_context(user_msg)
+
     system_prompt = (
         "You are FYAT AI 1.0, a helpful BRAC University CSE assistant. "
-        "Answer strictly based on the context below, but fix grammar / formatting:\n\n"
+        "First, understand user query, and then answer based on the context below, but fix grammar / formatting:\n\n"
         f"{context}\n\n"
-        "If the context is insufficient, politely direct the user to "
-        "https://cse.sds.bracu.ac.bd/ and https://www.bracu.ac.bd/."
+        "If the context seems insufficient, then response possible answer with your pretrained knowledge and politely direct the user to "
+        "https://cse.sds.bracu.ac.bd/ and https://www.bracu.ac.bd/. You must let the user know if you used your pretrained knowledge." 
     )
-    return call_groq(system_prompt, user_msg)
+
+    # Prepare full message history
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    history = st.session_state.history[:-1] if len(st.session_state.history) else []
+    for i in range(0, len(history), 2):
+        user = history[i][1]
+        bot = history[i+1][1] if i+1 < len(history) else ""
+        messages.append({"role": "user", "content": user})
+        messages.append({"role": "assistant", "content": bot})
+
+    messages.append({"role": "user", "content": user_msg})
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    body = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": 800
+    }
+
+    response = requests.post(GROQ_URL, headers=headers, json=body, timeout=30)
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
+
 
 # ---------- 3. Streamlit UI ----------
 st.set_page_config(page_title="FYAT AI – BRACU CSE Assistant", page_icon="🪄")
